@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyseur de Mots de Passe</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #6366f1;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 520px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 8px;
+            border: 2px solid #334155;
+            background-color: #0f172a;
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+        }
+
+        .progress-bar-bg {
+            height: 8px;
+            background-color: #334155;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .badge {
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .feedback-list {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .feedback-list li {
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fca5a5;
+        }
+
+        .generator-section {
+            border-top: 1px solid #334155;
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>🛡️ Analyseur de Mot de Passe</h1>
+        <p class="subtitle">Testez la robustesse de vos mots de passe en temps réel</p>
+
+        <div class="input-group">
+            <input type="text" id="passwordInput" placeholder="Saisissez un mot de passe..." autocomplete="off">
+        </div>
+
+        <div class="progress-bar-bg">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <div class="stats">
+            <span>Robustesse : <strong id="ratingText">-</strong></span>
+            <span>Entropie : <strong id="entropyText">0 bits</strong></span>
+        </div>
+
+        <ul id="feedbackList" class="feedback-list"></ul>
+
+        <div class="generator-section">
+            <button onclick="generatePassword()">🎲 Générer un mot de passe fort</button>
+        </div>
+    </div>
+
+    <script>
+        const passwordInput = document.getElementById('passwordInput');
+        const progressBar = document.getElementById('progressBar');
+        const ratingText = document.getElementById('ratingText');
+        const entropyText = document.getElementById('entropyText');
+        const feedbackList = document.getElementById('feedbackList');
+
+        let debounceTimer;
+
+        passwordInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(analyzePassword, 300);
+        });
+
+        async function analyzePassword() {
+            const password = passwordInput.value;
+            if (!password) {
+                resetUI();
+                return;
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await response.json();
+                updateUI(data);
+            } catch (err) {
+                console.error("Erreur API :", err);
+            }
+        }
+
+        function updateUI(data) {
+            progressBar.style.width = data.score + '%';
+
+            let color = 'var(--danger)';
+            if (data.score >= 80) color = 'var(--success)';
+            else if (data.score >= 50) color = 'var(--warning)';
+
+            progressBar.style.backgroundColor = color;
+            ratingText.textContent = data.rating;
+            ratingText.style.color = color;
+            entropyText.textContent = data.entropy_bits + ' bits';
+
+            feedbackList.innerHTML = '';
+            data.feedback.forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = '• ' + item;
+                feedbackList.appendChild(li);
+            });
+        }
+
+        function resetUI() {
+            progressBar.style.width = '0%';
+            ratingText.textContent = '-';
+            ratingText.style.color = 'inherit';
+            entropyText.textContent = '0 bits';
+            feedbackList.innerHTML = '';
+        }
+
+        async function generatePassword() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ length: 16 })
+                });
+                const data = await response.json();
+                passwordInput.value = data.password;
+                analyzePassword();
+            } catch (err) {
+                console.error("Erreur Génération :", err);
+            }
+        }
+    </script>
+</body>
+
+</html>
